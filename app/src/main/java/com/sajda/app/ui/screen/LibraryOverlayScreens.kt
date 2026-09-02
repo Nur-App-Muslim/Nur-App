@@ -1,0 +1,602 @@
+package com.sajda.app.ui.screen
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.PauseCircle
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.sajda.app.data.repository.QuranRepository
+import com.sajda.app.domain.model.AppLanguage
+import com.sajda.app.domain.model.AudioDownloadMode
+import com.sajda.app.domain.model.AudioDownloadState
+import com.sajda.app.domain.model.AudioPlaybackState
+import com.sajda.app.domain.model.Bookmark
+import com.sajda.app.domain.model.QuranSearchResult
+import com.sajda.app.domain.model.SearchResultType
+import com.sajda.app.domain.model.Surah
+import com.sajda.app.domain.model.UserSettings
+import com.sajda.app.ui.component.ArabicVerseText
+import com.sajda.app.ui.component.HeroCard
+import com.sajda.app.ui.component.MetadataChip
+import com.sajda.app.ui.component.SanctuaryCard
+import com.sajda.app.ui.component.formatStorageSize
+import com.sajda.app.ui.theme.surfaceContainerLow
+import com.sajda.app.ui.theme.surfaceContainerLowest
+import com.sajda.app.util.audioBundleSizeBytes
+import com.sajda.app.util.buildHighlightedText
+import com.sajda.app.util.hasAnyDownloadedAudio
+import com.sajda.app.util.isEnglish
+
+private data class BookmarkEntryUi(
+    val bookmark: Bookmark,
+    val arabic: String,
+    val translation: String,
+    val englishTranslation: String
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SearchScreen(
+    appLanguage: AppLanguage,
+    quranRepository: QuranRepository,
+    onBack: () -> Unit,
+    onOpenResult: (QuranSearchResult) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf<SearchResultType?>(null) }
+    val rawResults by produceState(initialValue = emptyList<QuranSearchResult>(), query) {
+        value = quranRepository.search(query)
+    }
+    val results = remember(rawResults, selectedType) {
+        rawResults.filter { result ->
+            selectedType == null || result.type == selectedType
+        }
+    }
+    val suggestions = remember(appLanguage) {
+        if (appLanguage.isEnglish()) {
+            listOf("Patience", "Prayer", "Mercy")
+        } else {
+            listOf("Sabar", "Sholat", "Rahmat")
+        }
+    }
+
+    OverlayShell(
+        title = "Al-Qur'an",
+        subtitle = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.search_verses_or_topics),
+        onBack = onBack
+    ) {
+        SanctuaryCard(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Rounded.Language, contentDescription = null) },
+                placeholder = { Text(androidx.compose.ui.res.stringResource(com.sajda.app.R.string.search_verses_or_surah_names)) },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChoiceChip(
+                label = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.all),
+                selected = selectedType == null,
+                onClick = { selectedType = null }
+            )
+            ChoiceChip(
+                label = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.surah),
+                selected = selectedType == SearchResultType.SURAH,
+                onClick = { selectedType = SearchResultType.SURAH }
+            )
+            ChoiceChip(
+                label = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.verse),
+                selected = selectedType == SearchResultType.AYAT,
+                onClick = { selectedType = SearchResultType.AYAT }
+            )
+        }
+
+        if (query.isBlank()) {
+            Text(
+                text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.recent_searches),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                suggestions.forEach { suggestion ->
+                    Row(
+                        modifier = Modifier.clickable { query = suggestion },
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        MetadataChip(text = suggestion)
+                    }
+                }
+            }
+        } else if (results.isEmpty()) {
+            EmptyStateCard(
+                title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.no_results_found),
+                message = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.try_a_shorter_or_more_common_keyword)
+            )
+        } else {
+            results.forEach { result ->
+                SanctuaryCard(
+                    modifier = Modifier.clickable { onOpenResult(result) },
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MetadataChip(
+                                text = if (result.type == SearchResultType.SURAH) {
+                                    androidx.compose.ui.res.stringResource(com.sajda.app.R.string.surah)
+                                } else {
+                                    androidx.compose.ui.res.stringResource(com.sajda.app.R.string.verse)
+                                },
+                                active = result.type == SearchResultType.SURAH
+                            )
+                            Text(
+                                text = buildHighlightedText(
+                                    text = result.title,
+                                    query = query,
+                                    highlightColor = MaterialTheme.colorScheme.primary
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = buildHighlightedText(
+                                    text = result.subtitle,
+                                    query = query,
+                                    highlightColor = MaterialTheme.colorScheme.primary
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Bookmark,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BookmarksScreen(
+    appLanguage: AppLanguage,
+    quranRepository: QuranRepository,
+    bookmarks: List<Bookmark>,
+    onBack: () -> Unit,
+    onOpenAyat: (Bookmark) -> Unit
+) {
+    val entries by produceState(initialValue = emptyList<BookmarkEntryUi>(), bookmarks) {
+        value = bookmarks.mapNotNull { bookmark ->
+            val ayat = quranRepository.getAyat(bookmark.surahNumber, bookmark.ayatNumber) ?: return@mapNotNull null
+            BookmarkEntryUi(
+                bookmark = bookmark,
+                arabic = ayat.textArabic,
+                translation = ayat.translation,
+                englishTranslation = ayat.englishTranslation
+            )
+        }
+    }
+
+    OverlayShell(
+        title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.reading_history_bookmarks),
+        subtitle = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.bookmarks_size_saved_verses),
+        onBack = onBack
+    ) {
+        val featured = entries.firstOrNull()
+
+        if (featured != null) {
+            HeroCard {
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.last_saved),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                )
+                Text(
+                    text = "${featured.bookmark.surahName}: ${featured.bookmark.ayatNumber}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                ArabicVerseText(text = featured.arabic, fontSize = 24)
+                Text(
+                    text = if (appLanguage.isEnglish()) {
+                        featured.englishTranslation.ifBlank { featured.translation }
+                    } else {
+                        featured.translation
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.86f)
+                )
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.continue_reading),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.clickable { onOpenAyat(featured.bookmark) }
+                )
+            }
+        }
+
+        if (entries.isEmpty()) {
+            EmptyStateCard(
+                title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.no_bookmarks_yet),
+                message = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.save_your_favorite_verses_from_the_qur_a)
+            )
+        } else {
+            Text(
+                text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.saved_verses),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            entries.forEachIndexed { index, entry ->
+                SanctuaryCard(
+                    modifier = Modifier.clickable { onOpenAyat(entry.bookmark) },
+                    containerColor = bookmarkCardColor(entry.bookmark.highlightColor)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            MetadataChip(text = "%02d".format(index + 1), active = true)
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${entry.bookmark.surahName} - ${androidx.compose.ui.res.stringResource(com.sajda.app.R.string.verse)} ${entry.bookmark.ayatNumber}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = entry.arabic,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = if (appLanguage.isEnglish()) {
+                                    entry.englishTranslation.ifBlank { entry.translation }
+                                } else {
+                                    entry.translation
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                            BookmarkMetaRow(entry.bookmark, appLanguage)
+                            if (entry.bookmark.note.isNotBlank()) {
+                                Text(
+                                    text = entry.bookmark.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BookmarkMetaRow(bookmark: Bookmark, appLanguage: AppLanguage) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MetadataChip(text = bookmark.folderName.ifBlank { androidx.compose.ui.res.stringResource(com.sajda.app.R.string.favorites) }, active = true)
+        if (bookmark.highlightColor.isNotBlank()) {
+            MetadataChip(text = bookmark.highlightColor, active = false)
+        }
+    }
+}
+
+@Composable
+private fun bookmarkCardColor(highlightColor: String): Color {
+    return when (highlightColor) {
+        "Mint" -> Color(0xFFE9F6EF)
+        "Sand" -> Color(0xFFF8F1E2)
+        "Blush" -> Color(0xFFF8E9EA)
+        "Sky" -> Color(0xFFEAF1FB)
+        else -> MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AudioManagementScreen(
+    appLanguage: AppLanguage,
+    settings: UserSettings,
+    surahList: List<Surah>,
+    downloadStates: Map<Int, AudioDownloadState>,
+    onBack: () -> Unit,
+    onPlay: (Surah) -> Unit,
+    onDelete: (Surah) -> Unit,
+    onDownload: (Surah) -> Unit,
+    onDeleteAll: () -> Unit,
+    onSetDownloadMode: (AudioDownloadMode) -> Unit,
+    onSetWifiOnly: (Boolean) -> Unit
+) {
+    val downloaded = surahList.filter { it.hasAnyDownloadedAudio() }
+    val storageUsage = downloaded.sumOf { surah ->
+        surah.audioBundleSizeBytes(
+            mode = settings.audioDownloadMode,
+            selectedReciter = settings.selectedQuranReciter
+        )
+    }
+
+    OverlayShell(
+        title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.audio_management),
+        subtitle = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.murattal_by_surah),
+        onBack = onBack
+    ) {
+        SanctuaryCard(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Text(
+                text = formatStorageSize(storageUsage),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.downloaded_size_surahs_stored_offline),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AudioDownloadMode.entries.forEach { mode ->
+                    ChoiceChip(
+                        label = when (mode) {
+                            AudioDownloadMode.SELECTED_RECITER_ONLY -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.selected_reciter_only)
+                            AudioDownloadMode.ALL_RECITERS -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.all_reciters)
+                        },
+                        selected = settings.audioDownloadMode == mode,
+                        onClick = { onSetDownloadMode(mode) }
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.download_on_wi_fi_only),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.recommended_for_large_audio_packages),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = settings.wifiOnlyAudioDownloads,
+                    onCheckedChange = onSetWifiOnly
+                )
+            }
+            if (downloaded.isNotEmpty()) {
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.delete_all_audio),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable(onClick = onDeleteAll)
+                )
+            }
+        }
+
+        if (surahList.isEmpty()) {
+            EmptyStateCard(
+                title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.surah_list_is_not_ready),
+                message = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.open_the_qur_an_page_again_after_the_dat)
+            )
+        }
+
+        surahList.forEach { surah ->
+            val state = downloadStates[surah.number]
+            val estimatedSize = surah.audioBundleSizeBytes(
+                mode = settings.audioDownloadMode,
+                selectedReciter = settings.selectedQuranReciter
+            )
+            SanctuaryCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = surah.transliteration,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${if (appLanguage.isEnglish()) surah.englishTranslation.ifBlank { surah.translation } else surah.translation} - ${surah.totalVerses} ${androidx.compose.ui.res.stringResource(com.sajda.app.R.string.verses)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.surah_downloadedreciterids_size_com_sajd),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Row {
+                        if (surah.hasAnyDownloadedAudio()) {
+                            IconButton(onClick = { onPlay(surah) }) {
+                                Icon(Icons.Rounded.Headphones, contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.play))
+                            }
+                            IconButton(onClick = { onDelete(surah) }) {
+                                Icon(Icons.Rounded.Delete, contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.delete))
+                            }
+                        } else {
+                            IconButton(onClick = { onDownload(surah) }) {
+                                Icon(Icons.Rounded.Download, contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.download))
+                            }
+                        }
+                    }
+                }
+                if (state?.isDownloading == true) {
+                    LinearProgressIndicator(
+                        progress = state.progress / 100f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                MetadataChip(
+                    text = when {
+                        state?.isDownloading == true -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.downloading_state_progress)
+                        surah.hasAnyDownloadedAudio() -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.offline_audio_ready)
+                        settings.audioDownloadMode == AudioDownloadMode.SELECTED_RECITER_ONLY -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.selected_reciter_formatstoragesize_estim)
+                        else -> androidx.compose.ui.res.stringResource(com.sajda.app.R.string.all_reciters_formatstoragesize_estimated)
+                    },
+                    active = surah.hasAnyDownloadedAudio()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FullAudioPlayerScreen(
+    appLanguage: AppLanguage,
+    playbackState: AudioPlaybackState,
+    currentSurah: Surah?,
+    previousSurah: Surah?,
+    nextSurah: Surah?,
+    onBack: () -> Unit,
+    onTogglePlayback: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onStop: () -> Unit
+) {
+    OverlayShell(
+        title = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.now_playing),
+        subtitle = currentSurah?.transliteration ?: androidx.compose.ui.res.stringResource(com.sajda.app.R.string.nurapp_murattal),
+        onBack = onBack
+    ) {
+        HeroCard {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Text(
+                    text = playbackState.title.ifBlank { androidx.compose.ui.res.stringResource(com.sajda.app.R.string.nurapp_murattal) },
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${playbackState.elapsedLabel} / ${playbackState.durationLabel}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.84f)
+                )
+                LinearProgressIndicator(
+                    progress = playbackState.progress,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.16f)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onPrevious, enabled = previousSurah != null) {
+                        Icon(Icons.Rounded.SkipPrevious, contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.previous), tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                    IconButton(onClick = onTogglePlayback) {
+                        Icon(
+                            imageVector = if (playbackState.isPlaying) Icons.Rounded.PauseCircle else Icons.Rounded.PlayCircle,
+                            contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.toggle_playback),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
+                    IconButton(onClick = onNext, enabled = nextSurah != null) {
+                        Icon(Icons.Rounded.SkipNext, contentDescription = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.next), tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.stop_playback),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.clickable(onClick = onStop)
+                )
+            }
+        }
+
+        SanctuaryCard {
+            Text(
+                text = androidx.compose.ui.res.stringResource(com.sajda.app.R.string.background_audio_stays_active_when_the_a),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
