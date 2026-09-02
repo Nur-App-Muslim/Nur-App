@@ -1,0 +1,5 @@
+Initial release of NurApp:
+- Accurate offline prayer times and adhan notifications
+- Full 30 Juz Qur'an with offline murattal audio
+- Qibla compass finder
+- Daily Hadith and Ramadan schedule

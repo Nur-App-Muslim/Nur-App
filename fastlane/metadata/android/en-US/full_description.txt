@@ -1,0 +1,12 @@
+NurApp is a privacy-focused, offline-first daily Muslim companion for Android.
+
+Key features:
+• Accurate Prayer Times: Offline calculation based on geographic coordinates with multiple calculation methods and madhhab options.
+• Timely Adhan Alarms: Reliable notifications and audio reminders at prayer times, with an option to override silent mode.
+• Complete Qur'an (30 Juz): Arabic text with clear typography, transliteration, and translation. Supports offline bookmarking and audio recitation downloads by surah.
+• Qibla Compass: Responsive direction finder to locate the Kaaba from anywhere.
+• Hadith & Daily Duas: Daily inspirational hadith collections and essential prayers.
+• Hijri Calendar & Ramadan: Islamic calendar dates and fast schedule details.
+• Clean & Modern UI: Full support for dark mode and readable Arabic font scaling.
+
+No ads, no tracking, and fully open-source.

@@ -1,0 +1,5 @@
+Rilis perdana NurApp:
+- Jadwal sholat dan notifikasi adzan tepat waktu
+- Al-Qur'an 30 juz lengkap dengan audio murattal
+- Kompas penunjuk arah kiblat
+- Kumpulan hadits harian dan jadwal Ramadhan

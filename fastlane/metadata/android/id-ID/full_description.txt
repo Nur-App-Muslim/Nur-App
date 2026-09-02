@@ -1,0 +1,12 @@
+NurApp adalah aplikasi pendamping ibadah harian Muslim yang bersih, ringan, dan mengutamakan penggunaan offline.
+
+Fitur utama:
+• Jadwal Sholat Akurat: Perhitungan waktu sholat offline berbasis koordinat lokasi GPS dengan pilihan metode hisab dan madzhab.
+• Notifikasi Adzan Tepat Waktu: Pengingat adzan yang andal dengan opsi tetap berdering saat mode senyap aktif.
+• Al-Qur'an 30 Juz: Teks ayat Arab yang jelas, transliterasi Latin, dan terjemahan. Dilengkapi fitur penanda bacaan (bookmark) serta unduhan audio murattal per surah.
+• Penunjuk Arah Kiblat: Kompas interaktif untuk menemukan arah Ka'bah secara cepat.
+• Hadits & Doa Harian: Kumpulan hadits harian dan doa-doa pilihan.
+• Kalender Hijriyah & Ramadhan: Penanggalan Islam serta jadwal imsakiyah.
+• Desain Bersih & Nyaman: Mendukung mode gelap (dark mode) serta pengaturan ukuran huruf Arab.
+
+Bebas iklan, tanpa pelacak, dan sepenuhnya open-source.
