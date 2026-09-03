@@ -6,15 +6,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Build
+import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -29,8 +27,8 @@ data class LocationSnapshot(
 
 class LocationService(private val context: Context) {
 
-    private val fusedLocationClient: FusedLocationProviderClient by lazy {
-        LocationServices.getFusedLocationProviderClient(context)
+    private val locationManager: LocationManager? by lazy {
+        context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
     }
 
     fun hasLocationPermission(): Boolean {
@@ -76,51 +74,96 @@ class LocationService(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     private suspend fun getBestLocation(): Location? {
-        val lastLocation = suspendCancellableCoroutine<Location?> { continuation ->
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location ->
-                    continuation.resume(location)
+        val lm = locationManager ?: return null
+
+        val providers = listOf(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER
+        )
+
+        var bestLocation: Location? = null
+        for (provider in providers) {
+            if (lm.isProviderEnabled(provider)) {
+                val loc = try {
+                    lm.getLastKnownLocation(provider)
+                } catch (e: Exception) {
+                    null
                 }
-                .addOnFailureListener {
-                    Log.e(TAG, "lastLocation gagal", it)
-                    continuation.resume(null)
+                if (loc != null) {
+                    if (bestLocation == null || loc.time > bestLocation.time) {
+                        bestLocation = loc
+                    }
                 }
+            }
         }
 
-        if (lastLocation != null) {
-            Log.d(TAG, "Menggunakan lastLocation")
-            return lastLocation
+        // Jika lokasi terakhir masih cukup baru (< 30 menit), gunakan langsung
+        if (bestLocation != null && (System.currentTimeMillis() - bestLocation.time < 1000 * 60 * 30)) {
+            Log.d(TAG, "Menggunakan lastKnownLocation")
+            return bestLocation
         }
 
-        Log.d(TAG, "lastLocation null, meminta fresh location")
-        return requestFreshLocation()
+        Log.d(TAG, "Meminta fresh location dari LocationManager")
+        return requestFreshLocation() ?: bestLocation
     }
 
     @SuppressLint("MissingPermission")
     private suspend fun requestFreshLocation(): Location? {
-        return suspendCancellableCoroutine { continuation ->
-            val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 0L)
-                .setMaxUpdates(1)
-                .build()
+        val lm = locationManager ?: return null
 
-            val callback = object : LocationCallback() {
-                override fun onLocationResult(result: LocationResult) {
-                    fusedLocationClient.removeLocationUpdates(this)
-                    continuation.resume(result.lastLocation)
+        return suspendCancellableCoroutine { continuation ->
+            val provider = when {
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+                else -> null
+            }
+
+            if (provider == null) {
+                if (continuation.isActive) continuation.resume(null)
+                return@suspendCancellableCoroutine
+            }
+
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    lm.removeUpdates(this)
+                    if (continuation.isActive) {
+                        continuation.resume(location)
+                    }
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {
+                    lm.removeUpdates(this)
+                    if (continuation.isActive) {
+                        continuation.resume(null)
+                    }
                 }
             }
 
             continuation.invokeOnCancellation {
-                fusedLocationClient.removeLocationUpdates(callback)
+                lm.removeUpdates(listener)
             }
 
-            fusedLocationClient.requestLocationUpdates(
-                request,
-                callback,
-                Looper.getMainLooper()
-            ).addOnFailureListener { error ->
-                Log.e(TAG, "requestLocationUpdates gagal", error)
-                fusedLocationClient.removeLocationUpdates(callback)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    lm.getCurrentLocation(
+                        provider,
+                        null,
+                        context.mainExecutor
+                    ) { location ->
+                        if (continuation.isActive) {
+                            continuation.resume(location)
+                        }
+                    }
+                } else {
+                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "requestSingleUpdate / getCurrentLocation gagal", e)
+                lm.removeUpdates(listener)
                 if (continuation.isActive) {
                     continuation.resume(null)
                 }
@@ -138,11 +181,12 @@ class LocationService(private val context: Context) {
                 listOf(
                     address?.subAdminArea,
                     address?.locality,
-                    address?.adminArea
-                ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
-            } catch (error: Exception) {
-                Log.e(TAG, "Reverse geocode error", error)
-                ""
+                    address?.adminArea,
+                    address?.countryName
+                ).firstOrNull { !it.isNullOrBlank() } ?: "Lokasi Saat Ini"
+            } catch (e: Exception) {
+                Log.e(TAG, "Geocoder error", e)
+                "Lokasi Saat Ini"
             }
         }
     }

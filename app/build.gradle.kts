@@ -119,13 +119,19 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.findByName("debug")
-            isMinifyEnabled = false
+            signingConfig = if (hasReleaseKeystore) signingConfigs.findByName("release") else null
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     compileOptions {
@@ -150,7 +156,11 @@ android {
 
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += listOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/*.version",
+                "/META-INF/DEPENDENCIES"
+            )
         }
     }
 
@@ -192,7 +202,6 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("androidx.work:work-runtime-ktx:2.8.1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("androidx.media3:media3-common:1.1.1")
     implementation("androidx.media3:media3-exoplayer:1.1.1")

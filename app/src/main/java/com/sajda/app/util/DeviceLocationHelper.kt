@@ -53,7 +53,7 @@ object DeviceLocationHelper {
         }
 
         LocationService(context).getCurrentLocationSnapshot()?.let { snapshot ->
-            Log.d(TAG, "Menggunakan FusedLocationProviderClient untuk lokasi aktif")
+            Log.d(TAG, "Menggunakan LocationService untuk lokasi aktif")
             return DeviceLocationResult.Success(
                 DeviceLocation(
                     label = snapshot.cityName,
