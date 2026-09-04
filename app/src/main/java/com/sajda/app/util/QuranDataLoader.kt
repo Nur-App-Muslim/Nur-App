@@ -93,7 +93,7 @@ object QuranDataLoader {
     }
 }
 
-private data class QuranAssetSurah(
+internal data class QuranAssetSurah(
     val id: Int,
     val name: String,
     val transliteration: String,
@@ -104,20 +104,21 @@ private data class QuranAssetSurah(
     val verses: List<QuranAssetVerse>
 )
 
-private data class QuranAssetVerse(
+internal data class QuranAssetVerse(
     val id: Int,
     val text: String,
     val translation: String? = null,
     val transliteration: String? = null
 )
 
-private data class QuranEnglishAssetSurah(
+internal data class QuranEnglishAssetSurah(
     val id: Int,
     val translation: String,
     val verses: List<QuranEnglishAssetVerse>
 )
 
-private data class QuranEnglishAssetVerse(
+internal data class QuranEnglishAssetVerse(
     val id: Int,
     val translation: String
 )
+

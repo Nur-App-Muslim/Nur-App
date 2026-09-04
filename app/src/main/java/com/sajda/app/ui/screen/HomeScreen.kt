@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -71,7 +72,8 @@ fun HomeScreen(
     onOpenBookmarks: () -> Unit,
     onOpenCalendar: () -> Unit,
     onOpenQibla: () -> Unit,
-    onPlayLastAudio: (Surah) -> Unit
+    onPlayLastAudio: (Surah) -> Unit,
+    onNavigateToSettings: (() -> Unit)? = null
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isEnglish = state.appLanguage.isEnglish()
@@ -157,6 +159,13 @@ fun HomeScreen(
                         label = if (isEnglish) "Qibla" else "Kiblat",
                         onClick = onOpenQibla
                     )
+                    if (onNavigateToSettings != null) {
+                        SajdaTopAction(
+                            icon = Icons.Rounded.Settings,
+                            label = if (isEnglish) "Settings" else "Pengaturan",
+                            onClick = onNavigateToSettings
+                        )
+                    }
                 }
             }
         }

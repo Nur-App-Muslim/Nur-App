@@ -24,14 +24,23 @@
 -keep class com.sajda.app.domain.model.** { *; }
 -keep class com.sajda.app.data.remote.** { *; }
 
-# Keep Google Gson & Retrofit
+# Keep Google Gson & TypeToken
 -keep class com.google.gson.** { *; }
--keepclasseswithmembernames class com.google.gson.** { *; }
--keepclassmembers,allowobfuscation class * {
+-keepclassmembers class com.google.gson.** { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keepclassmembers class * extends com.google.gson.reflect.TypeToken { *; }
+-keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
+    @com.google.gson.annotations.Expose <fields>;
 }
 -dontwarn retrofit2.**
 -keep class retrofit2.** { *; }
+-keepclassmembers class retrofit2.** { *; }
+
+# Keep App Utilities & Data Loaders
+-keep class com.sajda.app.util.** { *; }
+-keepclassmembers class com.sajda.app.util.** { *; }
+
 
 # Keep Media3 / ExoPlayer
 -keep class androidx.media3.** { *; }

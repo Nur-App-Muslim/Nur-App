@@ -1,5 +1,6 @@
 package com.sajda.app.ui.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,7 @@ import com.sajda.app.domain.model.QuranReciter
 import com.sajda.app.domain.model.QuranReadingMode
 import com.sajda.app.domain.model.Surah
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -45,6 +47,7 @@ data class QuranUiState(
 
 @HiltViewModel
 class QuranViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val quranRepository: QuranRepository,
     private val audioRepository: AudioRepository,
     private val preferencesDataStore: PreferencesDataStore
@@ -58,11 +61,19 @@ class QuranViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            runCatching {
+                quranRepository.seedIfNeeded(context)
+            }.onFailure { error ->
+                handleQuranError("seedIfNeeded", error)
+            }
+        }
         observeSurahList()
         observeBookmarks()
         observeDownloadStates()
         observeSettings()
     }
+
 
     private fun observeSurahList() {
         viewModelScope.launch {

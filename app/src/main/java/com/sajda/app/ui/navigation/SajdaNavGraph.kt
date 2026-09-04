@@ -54,8 +54,10 @@ import com.sajda.app.ui.component.FloatingMiniPlayer
 import com.sajda.app.ui.screen.*
 import com.sajda.app.ui.viewmodel.*
 import com.sajda.app.util.AppTranslations
+import com.sajda.app.util.isEnglish
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
 
 @Composable
 fun SajdaNavGraph(
@@ -128,7 +130,8 @@ fun SajdaNavGraph(
     val isTopLevelDestination = currentRoute in listOf(
         Screen.Home::class.qualifiedName,
         Screen.Adhan::class.qualifiedName,
-        Screen.Quran::class.qualifiedName
+        Screen.Quran::class.qualifiedName,
+        Screen.Settings::class.qualifiedName
     )
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -173,6 +176,7 @@ fun SajdaNavGraph(
                     viewModel = homeViewModel,
                     onNavigateToQuran = { navController.navigate(Screen.Quran) },
                     onNavigateToPrayer = { navController.navigate(Screen.Adhan) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings) },
                     onOpenBookmarks = { navController.navigate(Screen.Bookmarks) },
                     onOpenCalendar = { navController.navigate(Screen.Calendar) },
                     onOpenQibla = { navController.navigate(Screen.Qibla) },
@@ -404,14 +408,16 @@ fun SajdaNavGraph(
         if (isTopLevelDestination) {
             FloatingDock(
                 items = listOf(
-                    DockItem("Home", Icons.Rounded.Home),
+                    DockItem(if (appLanguage.isEnglish()) "Home" else "Beranda", Icons.Rounded.Home),
                     DockItem("Adzan", Icons.Rounded.NotificationsActive),
-                    DockItem("Al-Qur'an", Icons.Rounded.MenuBook)
+                    DockItem("Al-Qur'an", Icons.Rounded.MenuBook),
+                    DockItem(if (appLanguage.isEnglish()) "Settings" else "Pengaturan", Icons.Rounded.Settings)
                 ),
                 selectedIndex = when (currentRoute) {
                     Screen.Home::class.qualifiedName -> 0
                     Screen.Adhan::class.qualifiedName -> 1
                     Screen.Quran::class.qualifiedName -> 2
+                    Screen.Settings::class.qualifiedName -> 3
                     else -> 0
                 },
                 modifier = Modifier
@@ -421,6 +427,7 @@ fun SajdaNavGraph(
                         0 -> Screen.Home
                         1 -> Screen.Adhan
                         2 -> Screen.Quran
+                        3 -> Screen.Settings
                         else -> Screen.Home
                     }
                     navController.navigate(destination) {
@@ -433,3 +440,4 @@ fun SajdaNavGraph(
         }
     }
 }
+
