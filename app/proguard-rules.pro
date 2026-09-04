@@ -48,8 +48,34 @@
 -keep class * extends androidx.work.Worker { *; }
 -keep class * extends androidx.work.ListenableWorker { *; }
 
+# Keep Kotlinx Serialization & Navigation Routes
+-keep class com.sajda.app.ui.navigation.** { *; }
+-keepclassmembers class com.sajda.app.ui.navigation.** { *; }
+-keep @kotlinx.serialization.Serializable class * { *; }
+-keepclassmembers class * {
+    @kotlinx.serialization.Serializable <fields>;
+}
+-keepclassmembers class * {
+    @kotlinx.serialization.SerialName <fields>;
+}
+-keepclasseswithmembers class * {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep class * implements kotlinx.serialization.KSerializer { *; }
+-keepclassmembers class **$$serializer {
+    *;
+}
+-keepclassmembers class * {
+    *** Companion;
+}
+-dontnote kotlinx.serialization.SerializationKt
+
+# Kotlin Coroutines
+-dontwarn kotlinx.coroutines.**
+
 # Preserve enums
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
