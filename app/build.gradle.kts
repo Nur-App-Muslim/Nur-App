@@ -164,6 +164,15 @@ android {
         }
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -172,9 +181,13 @@ android {
 android.applicationVariants.configureEach {
     if (buildType.name == "release") {
         outputs.configureEach {
-            @Suppress("UNCHECKED_CAST")
-            (this as com.android.build.gradle.internal.api.ApkVariantOutputImpl).outputFileName =
-                "NurApp-v$appVersionName.apk"
+            val outputImpl = this as? com.android.build.gradle.internal.api.ApkVariantOutputImpl
+            val abi = outputImpl?.getFilter(com.android.build.OutputFile.ABI)
+            outputImpl?.outputFileName = if (abi.isNullOrEmpty()) {
+                "NurApp-v$appVersionName-universal.apk"
+            } else {
+                "NurApp-v$appVersionName-$abi.apk"
+            }
         }
     }
 }
