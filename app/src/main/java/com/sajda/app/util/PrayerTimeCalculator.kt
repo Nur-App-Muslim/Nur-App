@@ -116,18 +116,25 @@ object PrayerTimeCalculator {
         val safeAsr = asr.coerceAtLeast(safeDhuhr + 110)
         val safeIsha = isha.coerceAtLeast(maghrib + 55)
 
+        val ihtiyat = if (calculationMethod == PrayerCalculationMethod.KEMENAG) 3.0 else 2.0
+        val finalFajr = fajr + ihtiyat
+        val finalDhuhr = safeDhuhr + ihtiyat
+        val finalAsr = safeAsr + ihtiyat
+        val finalMaghrib = maghrib + ihtiyat
+        val finalIsha = safeIsha + ihtiyat
+
         return DetailedPrayerTimes(
             date = date.toString(),
             locationName = locationName,
             latitude = latitude,
             longitude = longitude,
-            imsak = formatMinutes(fajr - 10.0),
-            fajr = formatMinutes(fajr),
+            imsak = formatMinutes(finalFajr - 10.0),
+            fajr = formatMinutes(finalFajr),
             sunrise = formatMinutes(sunrise),
-            dhuhr = formatMinutes(safeDhuhr),
-            asr = formatMinutes(safeAsr),
-            maghrib = formatMinutes(maghrib),
-            isha = formatMinutes(safeIsha),
+            dhuhr = formatMinutes(finalDhuhr),
+            asr = formatMinutes(finalAsr),
+            maghrib = formatMinutes(finalMaghrib),
+            isha = formatMinutes(finalIsha),
             qiblaDirection = calculateQiblaDirection(latitude, longitude)
         )
     }

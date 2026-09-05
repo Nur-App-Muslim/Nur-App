@@ -23,6 +23,8 @@
 -keep class com.sajda.app.data.local.** { *; }
 -keep class com.sajda.app.domain.model.** { *; }
 -keep class com.sajda.app.data.remote.** { *; }
+-keep class com.sajda.app.service.** { *; }
+-keepclassmembers class com.sajda.app.service.** { *; }
 
 # Keep Google Gson & TypeToken
 -keep class com.google.gson.** { *; }

@@ -147,6 +147,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (AdhanPlaybackStore.state.value.isActive) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                when (event.keyCode) {
+                    android.view.KeyEvent.KEYCODE_VOLUME_DOWN,
+                    android.view.KeyEvent.KEYCODE_VOLUME_UP,
+                    android.view.KeyEvent.KEYCODE_VOLUME_MUTE,
+                    android.view.KeyEvent.KEYCODE_POWER -> {
+                        val stopIntent = android.content.Intent(this, com.sajda.app.service.AdzanService::class.java).apply {
+                            action = com.sajda.app.util.Constants.ACTION_STOP_ADZAN
+                        }
+                        startService(stopIntent)
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     private fun resolveStartScreen(intent: android.content.Intent?): Screen {
         return when (intent?.getStringExtra(com.sajda.app.util.Constants.EXTRA_OPEN_TAB)) {
             "quran" -> Screen.Quran

@@ -153,15 +153,17 @@ class AdzanScheduler @Inject constructor(@ApplicationContext private val context
                     AlarmClockInfo(triggerAtMillis, openAppPendingIntent),
                     pendingIntent
                 )
-                preferencesDataStore.appendAdhanLog(
-                    prayerName = scheduledPrayer.prayerName.label,
-                    status = if (isPrimary) {
-                        appContext.getString(com.sajda.app.R.string.primary_alarm_scheduled)
-                    } else {
-                        appContext.getString(com.sajda.app.R.string.exact_alarm_scheduled)
-                    },
-                    details = "AlarmClock | ${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
-                )
+                ioScope.launch {
+                    preferencesDataStore.appendAdhanLog(
+                        prayerName = scheduledPrayer.prayerName.label,
+                        status = if (isPrimary) {
+                            appContext.getString(com.sajda.app.R.string.primary_alarm_scheduled)
+                        } else {
+                            appContext.getString(com.sajda.app.R.string.exact_alarm_scheduled)
+                        },
+                        details = "AlarmClock | ${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
+                    )
+                }
                 return
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
@@ -185,22 +187,26 @@ class AdzanScheduler @Inject constructor(@ApplicationContext private val context
             } else {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
             }
-            preferencesDataStore.appendAdhanLog(
-                prayerName = scheduledPrayer.prayerName.label,
-                status = if (canScheduleExact) {
-                    appContext.getString(com.sajda.app.R.string.exact_alarm_scheduled)
-                } else {
-                    appContext.getString(com.sajda.app.R.string.fallback_alarm_scheduled)
-                },
-                details = "${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
-            )
+            ioScope.launch {
+                preferencesDataStore.appendAdhanLog(
+                    prayerName = scheduledPrayer.prayerName.label,
+                    status = if (canScheduleExact) {
+                        appContext.getString(com.sajda.app.R.string.exact_alarm_scheduled)
+                    } else {
+                        appContext.getString(com.sajda.app.R.string.fallback_alarm_scheduled)
+                    },
+                    details = "${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
+                )
+            }
         }.onFailure { error ->
             Log.e(TAG, "Failed to schedule ${scheduledPrayer.prayerName.label} at ${scheduledPrayer.scheduledAt}", error)
-            preferencesDataStore.appendAdhanLog(
-                prayerName = scheduledPrayer.prayerName.label,
-                status = appContext.getString(com.sajda.app.R.string.failed_to_schedule_alarm),
-                details = error.message.orEmpty()
-            )
+            ioScope.launch {
+                preferencesDataStore.appendAdhanLog(
+                    prayerName = scheduledPrayer.prayerName.label,
+                    status = appContext.getString(com.sajda.app.R.string.failed_to_schedule_alarm),
+                    details = error.message.orEmpty()
+                )
+            }
         }
     }
 

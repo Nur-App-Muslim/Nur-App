@@ -11,6 +11,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.graphics.drawable.Drawable
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -59,6 +61,36 @@ class AdzanService : Service() {
     private var cachedLanguage: AppLanguage = AppLanguage.INDONESIAN
     private var cachedSnoozeMinutes: Int = 10
     private var serviceWakeLock: PowerManager.WakeLock? = null
+    private var fadeJob: kotlinx.coroutines.Job? = null
+    private var hardwareControlReceiverRegistered = false
+
+    private val hardwareControlReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "android.media.VOLUME_CHANGED_ACTION" -> {
+                    val newVol = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+                    val prevVol = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", -1)
+                    if (newVol in 0 until prevVol) {
+                        if (newVol == 0) {
+                            stopAdzan()
+                        } else {
+                            val targetScale = (newVol.toFloat() / 15f * 0.50f).coerceIn(0.02f, 0.50f)
+                            mediaPlayer?.setVolume(targetScale, targetScale)
+                        }
+                    }
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    stopAdzan()
+                }
+                Intent.ACTION_CLOSE_SYSTEM_DIALOGS -> {
+                    val reason = intent.getStringExtra("reason")
+                    if (reason == "globalactions" || reason == "lock") {
+                        stopAdzan()
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -74,6 +106,21 @@ class AdzanService : Service() {
             }
         }.onFailure {
             Log.e(TAG, "Failed to acquire serviceWakeLock", it)
+        }
+
+        runCatching {
+            val filter = IntentFilter().apply {
+                addAction("android.media.VOLUME_CHANGED_ACTION")
+                addAction(Intent.ACTION_SCREEN_OFF)
+                @Suppress("DEPRECATION")
+                addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(hardwareControlReceiver, filter, RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(hardwareControlReceiver, filter)
+            }
+            hardwareControlReceiverRegistered = true
         }
     }
 
@@ -121,6 +168,12 @@ class AdzanService : Service() {
     override fun onDestroy() {
         isServiceRunning = false
         AdhanPlaybackStore.clear()
+        fadeJob?.cancel()
+        fadeJob = null
+        if (hardwareControlReceiverRegistered) {
+            runCatching { unregisterReceiver(hardwareControlReceiver) }
+            hardwareControlReceiverRegistered = false
+        }
         releasePlayer()
         releaseFallbackRingtone()
         abandonAudioFocus()
@@ -204,9 +257,11 @@ class AdzanService : Service() {
                     playShortFallbackAlert(prayerName, "MediaPlayer error")
                     true
                 }
+                setVolume(0.06f, 0.06f)
                 prepare()
                 start()
             }
+            startVolumeFadeIn()
             preferencesDataStore.updateAdhanLastEvent(
                 prayerName = prayerName,
                 status = if (audioSource.isFallbackShort) {
@@ -216,7 +271,7 @@ class AdzanService : Service() {
                 },
                 details = adzanUri.toString()
             )
-            Log.d(TAG, "Playing adhan for $prayerName from $adzanUri")
+            Log.d(TAG, "Playing adhan for $prayerName from $adzanUri with gentle 6% to 50% fade-in")
             NotificationManagerCompat.from(this).notify(
                 Constants.ADZAN_NOTIFICATION_ID,
                 createNotification(prayerName, isPlaying = true)
@@ -230,6 +285,26 @@ class AdzanService : Service() {
                     status = getString(com.sajda.app.R.string.audio_playback_failed_fallback_alert_was),
                     details = it.message.orEmpty()
                 )
+            }
+        }
+    }
+
+    private fun startVolumeFadeIn() {
+        fadeJob?.cancel()
+        fadeJob = serviceScope.launch {
+            val startVol = 0.06f
+            val targetVol = 0.50f
+            val steps = 20
+            val stepDelay = 350L // Total ~7 seconds smooth fade-in
+            val increment = (targetVol - startVol) / steps
+            var currentVol = startVol
+
+            mediaPlayer?.setVolume(currentVol, currentVol)
+            for (i in 1..steps) {
+                kotlinx.coroutines.delay(stepDelay)
+                if (mediaPlayer?.isPlaying != true) break
+                currentVol = (currentVol + increment).coerceAtMost(targetVol)
+                mediaPlayer?.setVolume(currentVol, currentVol)
             }
         }
     }
@@ -508,6 +583,12 @@ class AdzanService : Service() {
     }
 
     private fun resolveAdzanAudio(prayerKey: String, settings: com.sajda.app.domain.model.UserSettings): AdzanAudioSource {
+        if (prayerKey.equals("imsak", ignoreCase = true) || prayerKey.equals("sunrise", ignoreCase = true) || prayerKey.equals("terbit", ignoreCase = true)) {
+            val notifUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            return AdzanAudioSource(uri = notifUri, shouldLoop = false, isFallbackShort = true)
+        }
+
         val isFajr = prayerKey.equals(PrayerName.FAJR.key, ignoreCase = true)
         val preferredName = if (isFajr) {
             settings.fajrAdzanSound.subuhResName
