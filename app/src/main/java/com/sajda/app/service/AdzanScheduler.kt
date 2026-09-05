@@ -142,22 +142,35 @@ class AdzanScheduler @Inject constructor(@ApplicationContext private val context
         }
         val openAppPendingIntent = PendingIntent.getActivity(
             appContext,
-            400,
+            400 + scheduledPrayer.prayerName.ordinal,
             openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && isPrimary) {
-            alarmManager.setAlarmClock(
-                AlarmClockInfo(triggerAtMillis, openAppPendingIntent),
-                pendingIntent
-            )
-            preferencesDataStore.appendAdhanLog(
-                prayerName = scheduledPrayer.prayerName.label,
-                status = appContext.getString(com.sajda.app.R.string.primary_alarm_scheduled),
-                details = "AlarmClock | ${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
-            )
-            return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                alarmManager.setAlarmClock(
+                    AlarmClockInfo(triggerAtMillis, openAppPendingIntent),
+                    pendingIntent
+                )
+                preferencesDataStore.appendAdhanLog(
+                    prayerName = scheduledPrayer.prayerName.label,
+                    status = if (isPrimary) {
+                        appContext.getString(com.sajda.app.R.string.primary_alarm_scheduled)
+                    } else {
+                        appContext.getString(com.sajda.app.R.string.exact_alarm_scheduled)
+                    },
+                    details = "AlarmClock | ${scheduledPrayer.prayerTime.locationName} | ${scheduledPrayer.timeValue}"
+                )
+                return
+            } else {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                return
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException on setAlarmClock for ${scheduledPrayer.prayerName.label}, falling back", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception on setAlarmClock for ${scheduledPrayer.prayerName.label}, falling back", e)
         }
 
         val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -208,6 +221,38 @@ class AdzanScheduler @Inject constructor(@ApplicationContext private val context
             prayerName = prayerName,
             prayerTimeValue = prayerTimeValue
         )
+        val openAppIntent = Intent(appContext, MainActivity::class.java).apply {
+            action = Constants.ACTION_OPEN_PRAYER_TAB
+            putExtra(Constants.EXTRA_OPEN_TAB, "prayer")
+            putExtra("is_adhan", true)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openAppPendingIntent = PendingIntent.getActivity(
+            appContext,
+            500 + prayerName.ordinal,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                alarmManager.setAlarmClock(
+                    AlarmClockInfo(triggerAtMillis, openAppPendingIntent),
+                    pendingIntent
+                )
+                ioScope.launch {
+                    preferencesDataStore.appendAdhanLog(
+                        prayerName = prayerName.label,
+                        status = appContext.getString(com.sajda.app.R.string.emergency_next_day_fallback_armed_2),
+                        details = "AlarmClock | $prayerDate | $prayerTimeValue | $locationName"
+                    )
+                }
+                return
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Emergency setAlarmClock fallback failed, trying exact alarm", e)
+        }
+
         val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else {

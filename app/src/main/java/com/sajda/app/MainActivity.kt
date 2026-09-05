@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
+        setupLockScreenWakeup(intent)
         val startDestination = resolveStartScreen(intent)
         updateVolumeControlStream(intent)
 
@@ -107,7 +108,31 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
+        setupLockScreenWakeup(intent)
         updateVolumeControlStream(intent)
+    }
+
+    private fun setupLockScreenWakeup(intent: android.content.Intent?) {
+        val isAdhan = intent?.getBooleanExtra("is_adhan", false) == true ||
+                intent?.getStringExtra(com.sajda.app.util.Constants.EXTRA_OPEN_TAB) == "prayer" ||
+                AdhanPlaybackStore.state.value.isActive
+
+        if (isAdhan) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+                val keyguardManager = getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+                keyguardManager?.requestDismissKeyguard(this, null)
+            } else {
+                @Suppress("DEPRECATION")
+                window.addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                )
+            }
+        }
     }
 
     private fun updateVolumeControlStream(intent: android.content.Intent?) {

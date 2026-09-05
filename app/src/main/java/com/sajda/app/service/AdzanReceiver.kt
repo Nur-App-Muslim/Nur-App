@@ -21,8 +21,11 @@ class AdzanReceiver : BroadcastReceiver() {
         val appContext = context.applicationContext
 
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        val wakeLock = powerManager.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "SajdaApp::AdhanReceiverWakeLock")
-        wakeLock.acquire(15000L)
+        val wakeLock = powerManager.newWakeLock(
+            android.os.PowerManager.PARTIAL_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "SajdaApp::AdhanReceiverWakeLock"
+        )
+        wakeLock.acquire(30000L)
 
         val prayerName = intent.getStringExtra(Constants.EXTRA_PRAYER_NAME) ?: "Waktu sholat"
         val prayerKey = intent.getStringExtra(Constants.EXTRA_PRAYER_KEY) ?: "fajr"

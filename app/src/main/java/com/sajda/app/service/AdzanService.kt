@@ -58,11 +58,23 @@ class AdzanService : Service() {
     private var cachedSettings: UserSettings = UserSettings()
     private var cachedLanguage: AppLanguage = AppLanguage.INDONESIAN
     private var cachedSnoozeMinutes: Int = 10
+    private var serviceWakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         preferencesDataStore = PreferencesDataStore(this)
         createNotificationChannel()
+        runCatching {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            serviceWakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "SajdaApp::AdzanServiceWakeLock"
+            ).apply {
+                acquire(10 * 60 * 1000L) // 10 minutes safety timeout
+            }
+        }.onFailure {
+            Log.e(TAG, "Failed to acquire serviceWakeLock", it)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -112,6 +124,12 @@ class AdzanService : Service() {
         releasePlayer()
         releaseFallbackRingtone()
         abandonAudioFocus()
+        serviceWakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+        serviceWakeLock = null
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -542,6 +560,30 @@ class AdzanService : Service() {
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+            val showIntent = PendingIntent.getActivity(
+                context,
+                "snooze-show-$prayerName".hashCode(),
+                Intent(context, MainActivity::class.java).apply {
+                    action = Constants.ACTION_OPEN_PRAYER_TAB
+                    putExtra(Constants.EXTRA_OPEN_TAB, "prayer")
+                    putExtra("is_adhan", true)
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    alarmManager.setAlarmClock(
+                        android.app.AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+                        pendingIntent
+                    )
+                    return
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed setAlarmClock for snooze, falling back", e)
+            }
+
             val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 alarmManager.canScheduleExactAlarms()
             } else {

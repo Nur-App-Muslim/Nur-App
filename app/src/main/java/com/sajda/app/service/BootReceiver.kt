@@ -14,6 +14,8 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent?.action ?: return
         val supportedActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
+            "android.intent.action.QUICKBOOT_POWERON",
+            "com.htc.intent.action.QUICKBOOT_POWERON",
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
@@ -24,6 +26,8 @@ class BootReceiver : BroadcastReceiver() {
 
         val appContext = context.applicationContext
         val shouldShowRecoveryReminder = action == Intent.ACTION_BOOT_COMPLETED ||
+            action == "android.intent.action.QUICKBOOT_POWERON" ||
+            action == "com.htc.intent.action.QUICKBOOT_POWERON" ||
             action == Intent.ACTION_MY_PACKAGE_REPLACED
 
         val pendingResult = goAsync()
